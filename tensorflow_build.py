@@ -56,7 +56,8 @@ def check_bazel_version(path, version):
                 if '_TF_MAX_BAZEL_VERSION' in line:
                     max_bzl_version_str = line
 
-                return (__find_version(min_bzl_version_str), __find_version(max_bzl_version_str))
+                if max_bzl_version_str != '' and min_bzl_version_str != '':
+                    return (__find_version(min_bzl_version_str), __find_version(max_bzl_version_str))
 
             else:
                 if 'check_bazel_version' in line:
@@ -72,6 +73,8 @@ def check_bazel_version(path, version):
                         segments = min_bzl_version_str.split(',')
                         return (segments[0], segments[1])
 
+    return None
+
 
         # print(min_bzl_version_str)
         # print(max_bzl_version_str)
@@ -80,8 +83,29 @@ def check_bazel_version(path, version):
 def get_bazel(version):
     # https://github.com/bazelbuild/bazel/releases/download/0.29.1/bazel-0.29.1-installer-linux-x86_64.sh
     bazel_url = 'https://github.com/bazelbuild/bazel/releases/download/{0}/bazel-{0}-installer-linux-x86_64.sh'.format(version)
-    command = 'wget -P bazel_{} '.format(version) + bazel_url
+    bazel_dir = 'bazel_{}'.format(version)
+
+    os.system('rm -rf ./' + bazel_dir)
+
+    command = 'wget -P' + ' ' + bazel_dir + ' ' + bazel_url
     subprocess.run([command], shell=True, check=True)
+
+    current_dir = os.getcwd()
+
+    # os.system('cd ./{}'.format(bazel_dir))
+    os.system('chmod +x ./{0}/bazel-{1}-installer-linux-x86_64.sh'.format(bazel_dir, version))
+    os.system('mkdir ./{0}/bin'.format(bazel_dir))
+    # os.system('mkdir ./{0}/bin/bazel'.format(bazel_dir))
+    os.system('mkdir ./{0}/lib/'.format(bazel_dir))
+    os.system('mkdir ./{0}/lib/bazel'.format(bazel_dir))
+
+    bzl_install_command = './{1}/bazel-{0}-installer-linux-x86_64.sh --prefix={2}/{1}'.format(version, bazel_dir, current_dir)
+    subprocess.run([bzl_install_command], shell=True, check=True)
+    return current_dir + '/{}'.format(bazel_dir) + '/bin'
+
+
+def tf_configure():
+    pass
 
 
 def main():
@@ -106,11 +130,13 @@ def main():
         return "Version TF {0} out of range min {1} or max {2} TF version".format(version, min_tf_version,
                                                                                   max_tf_version)
 
-    tf_path = git_clone(version)
+    # tf_path = git_clone(version)
 
     # for debug
-    # tf_path = 'tf_' + 'r' + version
-    check_bazel_version(tf_path, version)
+    tf_path = 'tf_' + 'r' + version
+    bzl_version = check_bazel_version(tf_path, version)
+    bzl_path = get_bazel(bzl_version[0])
+    print(bzl_path)
 
 
 main()
