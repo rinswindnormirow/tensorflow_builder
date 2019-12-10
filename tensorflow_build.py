@@ -67,6 +67,9 @@ def check_bazel_version(path, version):
                     r_brace_ind = min_bzl_version_str.find(')')
                     min_bzl_version_str = min_bzl_version_str[l_brace_ind+1:r_brace_ind]
 
+                    if not min_bzl_version_str[1].isdigit():
+                        continue
+
                     if int_version <= version_to_int('1.12'):
                         return (min_bzl_version_str, min_bzl_version_str)
                     else:
@@ -104,24 +107,55 @@ def get_bazel(version):
     return current_dir + '/{}'.format(bazel_dir) + '/bin'
 
 
-def tf_configure():
-    pass
+def tf_configure(tf_path, python_location, python_library_location, apache_ignite_support, XLAJIT, opencl, rocm, cuda, cuda_version,
+                 cuda_location):
+
+    command = tf_path + '/configure'
+
+    configure_proc = subprocess.Popen([command], stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True)
+
+    # poll check if child process has terminated
+    while configure_proc.poll() is None:
+        line = configure_proc.stdout.readline()
+        print(line)
+        if 'location of python' in line:
+            configure_proc.stdin.write(python_location + '\\n')
+        elif 'Python library path' in line:
+            pass
+        pass
 
 
 def main():
-    version = '1.12'
-    destination = '/usr/lib/'
-    suffix = ''
 
     parser = argparse.ArgumentParser(description='tensorflow 1.xx build and install')
     parser.add_argument("--t", default='1.12', help='tensorflow version')
-    parser.add_argument("--i", default='', help='destination directory')
+    parser.add_argument("--i", default='/usr/lib/', help='destination directory')
     parser.add_argument("--s", default='', help='destination directory')
+
+    parser.add_argument("--python-location", default='/usr/bin/python', help='python interpreter location')
+    parser.add_argument("--python-library-location", default='\\n', help='python library path (empty == default)')
+    parser.add_argument("--apache-ignite-support", default='n')
+    parser.add_argument("--XLA-JIT", default='n')
+    parser.add_argument("--opencl-sycl", default='n')
+    parser.add_argument("--rocm", default='n')
+    parser.add_argument("--CUDA", default='y')
+    parser.add_argument("--CUDA-VERSION", default='')
+    parser.add_argument("--CUDA-toolkit-location", default='')
 
     args = parser.parse_args()
     version = args.t
     destination = args.i
     suffix = args.s
+
+    python_location = args.python_location
+    python_library_location = args.python_library_location
+    apache_ignite_support = args.apache_ignite_support
+    XLA_JIT = args.XLA_JIT
+    opencl_sycl = args.opencl_sycl
+    rocm = args.rocm
+    CUDA = args.CUDA
+    CUDA_VERSION = args.CUDA_VERSION
+    CUDA_toolkit_location = args.CUDA_toolkit_location
 
     min_v = version_to_int(min_tf_version)
     max_v = version_to_int(max_tf_version)
@@ -135,8 +169,11 @@ def main():
     # for debug
     tf_path = 'tf_' + 'r' + version
     bzl_version = check_bazel_version(tf_path, version)
+    print("---- detected bazel version: {} ----".format(bzl_version[0]))
     bzl_path = get_bazel(bzl_version[0])
     print(bzl_path)
 
+    tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
+                 XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location);
 
 main()
