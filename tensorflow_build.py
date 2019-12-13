@@ -140,14 +140,19 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
 
     # command = './' + tf_path + '/configure'
     # os.system('chmod +x ' + command)
+    print(os.getcwd())
 
-    command = './configure'
+    command = './configure.py'
     os.system('chmod +x ' + command)
 
-    configure_proc = subprocess.Popen([command], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+    configure_proc = subprocess.Popen(['/usr/bin/python3', command], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
 
     # poll check if child process has terminated
     while configure_proc.poll() is None:
+
+        configure_proc.stdout.flush()
+        configure_proc.stdin.flush()
+
         line = ''
         for c in iter(partial(configure_proc.stdout.read, 1), ''):
             if c == '\n' or c == ':':
@@ -247,6 +252,7 @@ def main():
 
     # for debug
     tf_path = 'tf_' + 'r' + version
+
     bzl_version = check_bazel_version(tf_path, version)
     print("---- detected bazel version: {} ----".format(bzl_version[0]))
     bzl_path = get_bazel(bzl_version[0])
