@@ -185,15 +185,56 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
         elif 'Android builds? [y/N]' in line:
             __stdin_write(configure_proc, android_wpc)
 
+    os.chdir('..')
+
 
 def tf_build(tf_dir):
     bazel = which('bazel')
     command = '{0} build --config=opt //tensorflow:libtensorflow_cc.so'.format(bazel)
 
-    # print(tf_dir)
-    # os.chdir('./' + tf_dir)
+    os.chdir('./' + tf_dir)
 
     subprocess.run([command], shell=True, check=True)
+    os.chdir('..')
+
+
+def eigen_download_and_build(tf_dir):
+
+    def __parser(wps, markers):
+        res_string = ''
+        n = 0
+        lbo = False       # last but one
+        for line in wps:
+            # if markers[n] in line:
+            b = 0
+            while line[b:].find(markers[n]) != -1:
+                p = line.find(markers[n])
+
+                if n < len(markers) - 2:
+                    n += 1
+                else:
+                    if n == len(markers) - 2:
+                        res_string += line[p:]
+                        lbo = True
+                        n += 1
+                    else:
+                        res_string += line[:p]
+
+                b = p
+            else:
+                if lbo == True:
+                    res_string += line
+
+        return res_string
+
+
+    with open('./' + tf_dir + '/tensorflow/workspace.bzl') as wps:
+        urls = __parser(wps, ["eigen_archive", 'urls', '[', ']'])
+    pass
+
+
+def protobuf_download_and_build(tf_dir):
+    pass
 
 
 def main():
@@ -262,6 +303,8 @@ def main():
                  XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
                  TensorRT, clang, mpi, opt_flag, android_wpc)
 
-    tf_build(tf_path)
+    # tf_build(tf_path)
+
+    eigen_download_and_build(tf_path)
 
 main()
