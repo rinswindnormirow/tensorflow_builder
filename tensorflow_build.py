@@ -91,11 +91,11 @@ def get_bazel(version):
     bazel_url = 'https://github.com/bazelbuild/bazel/releases/download/{0}/bazel-{0}-installer-linux-x86_64.sh'.format(version)
     bazel_dir = 'bazel_{}'.format(version)
 
-    # os.system('rm -rf ./' + bazel_dir)
+    os.system('rm -rf ./' + bazel_dir)
     os.system('rm -rf ./bazel/bin')
 
     command = 'wget -P' + ' ' + bazel_dir + ' ' + bazel_url
-    # subprocess.run([command], shell=True, check=True)
+    subprocess.run([command], shell=True, check=True)
 
     current_dir = os.getcwd()
 
@@ -198,39 +198,61 @@ def tf_build(tf_dir):
     os.chdir('..')
 
 
-def eigen_download_and_build(tf_dir):
+def __parser(wps, markers):
+    res_string = ''
+    n = 0
+    lbo = False  # last but one
+    for line in wps:
+        # if markers[n] in line:
+        b = 0
+        if n == len(markers):
+            break
+        while line[b:].find(markers[n]) != -1:
+            p = line.find(markers[n])
 
-    def __parser(wps, markers):
-        res_string = ''
-        n = 0
-        lbo = False       # last but one
-        for line in wps:
-            # if markers[n] in line:
-            b = 0
-            while line[b:].find(markers[n]) != -1:
-                p = line.find(markers[n])
-
-                if n < len(markers) - 2:
-                    n += 1
-                else:
-                    if n == len(markers) - 2:
-                        res_string += line[p:]
-                        lbo = True
-                        n += 1
-                    else:
-                        res_string += line[:p]
-
-                b = p
+            if n < len(markers) - 2:
+                n += 1
             else:
-                if lbo == True:
-                    res_string += line
+                if n == len(markers) - 2:
+                    # res_string += line[p:]
+                    line = line[p:]
+                    lbo = True
+                    n += 1
+                    continue
+                else:
+                    # res_string += line[:p]
+                    line = line[:p]
+                    n += 1
+                    break
+                    # lbo = False
 
-        return res_string
+            b = p
+        else:
+            if lbo == True:
+                res_string += line
 
+    seg = res_string.split('\n')
+    urls = []
+    for s in seg:
+        b = s.find('\"https')
+        if b != -1:
+            # e = s[b:].find('\"')
+            urls.append(s[b:])
+    return urls
+
+
+
+def eigen_download_and_build(tf_dir):
 
     with open('./' + tf_dir + '/tensorflow/workspace.bzl') as wps:
         urls = __parser(wps, ["eigen_archive", 'urls', '[', ']'])
-    pass
+
+    if path.exists("./eigen"):
+        os.system("rm -rf ./eigen")
+
+    command = 'wget -P ./eigen \"' + urls[1] + '\"'
+    subprocess.run([command], shell=True, check=True)
+
 
 
 def protobuf_download_and_build(tf_dir):
@@ -294,15 +316,15 @@ def main():
     # for debug
     tf_path = 'tf_' + 'r' + version
 
-    bzl_version = check_bazel_version(tf_path, version)
-    print("---- detected bazel version: {} ----".format(bzl_version[0]))
-    bzl_path = get_bazel(bzl_version[0])
-    print(bzl_path)
-
-    tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
-                 XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
-                 TensorRT, clang, mpi, opt_flag, android_wpc)
-
+    # bzl_version = check_bazel_version(tf_path, version)
+    # print("---- detected bazel version: {} ----".format(bzl_version[0]))
+    # bzl_path = get_bazel(bzl_version[0])
+    # print(bzl_path)
+    #
+    # tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
+    #              XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
+    #              TensorRT, clang, mpi, opt_flag, android_wpc)
+    #
     # tf_build(tf_path)
 
     eigen_download_and_build(tf_path)
