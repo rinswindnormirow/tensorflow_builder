@@ -234,28 +234,110 @@ def __parser(wps, markers):
     seg = res_string.split('\n')
     urls = []
     for s in seg:
-        b = s.find('\"https')
+        b = s.find('https')
         if b != -1:
-            # e = s[b:].find('\"')
-            urls.append(s[b:])
+            e = s[b:].rfind('\"')
+            urls.append(s[b:b+e])
     return urls
 
 
 
 def eigen_download_and_build(tf_dir):
 
+    # detect eigen version urls
     with open('./' + tf_dir + '/tensorflow/workspace.bzl') as wps:
         urls = __parser(wps, ["eigen_archive", 'urls', '[', ']'])
 
+    url = urls[0]
+
+    # download eigen
     if path.exists("./eigen"):
         os.system("rm -rf ./eigen")
 
-    command = 'wget -P ./eigen \"' + urls[1] + '\"'
+    command = 'wget -P ./eigen ' + url
     subprocess.run([command], shell=True, check=True)
 
+    # extract tarball
+    tarball = url[url.rfind('/') + 1:]
+    os.chdir('./eigen')
+    command = 'tar -xvf ' + tarball + ' --strip-components=1'
+    subprocess.run([command], shell=True, check=True)
+
+    # cmake
+    os.system('mkdir ./build')
+    os.chdir('./build')
+
+    subprocess.run('cmake ..', shell=True, check=True)
+
+    os.chdir('..')
+    os.chdir('..')
+
+
+def eigen_install(prefix):
+
+    os.chdir('./eigen/build')
+
+    # make install
+    install_prefix = '/usr/local/include/eigen3_' + prefix
+    if prefix != '':
+        cmake = 'cmake . -DINCLUDE_INSTALL_DIR=' + install_prefix
+        subprocess.run(cmake, shell=True, check=True)
+
+    subprocess.run('make install', check=True, shell=True)
+
+    os.chdir('..')
+    os.chdir('..')
 
 
 def protobuf_download_and_build(tf_dir):
+    with open('./' + tf_dir + '/tensorflow/workspace.bzl') as wps:
+        urls = __parser(wps, ["PROTOBUF_URLS", '[', ']'])
+
+    url = urls[0]
+
+    try:
+        # download eigen
+        if path.exists("./protobuf"):
+            os.system("rm -rf ./protobuf")
+
+        command = 'wget -P ./protobuf ' + url
+        subprocess.run([command], shell=True, check=True)
+
+        # extract tarball
+        tarball = url[url.rfind('/') + 1:]
+        os.chdir('./protobuf')
+        command = 'tar -xvf ' + tarball + ' --strip-components=1'
+        subprocess.run([command], shell=True, check=True)
+
+        # autogen
+        subprocess.run('./autogen.sh', shell=True, check=True)
+        # configure
+        subprocess.run('./configure', shell=True, check=True)
+        # make
+        subprocess.run('make', shell=True, check=True)
+        # print('check')
+        # subprocess.run('make check', shell=True, check=True)
+
+
+    except subprocess.CalledProcessError:
+        os.chdir('..')
+
+    os.chdir('..')
+    # os.chdir('..')
+
+
+def protobuf_install():
+    os.chdir('./protobuf')
+    try:
+        # make install
+        subprocess.run('make install', shell=True, check=True)
+    except subprocess.CalledProcessError:
+        os.chdir('..')
+
+    os.chdir('..')
+
+
+def install_tensorflow(tf_path):
     pass
 
 
@@ -267,7 +349,7 @@ def main():
     parser = argparse.ArgumentParser(description='tensorflow 1.xx build and install')
     parser.add_argument("--t", default='1.12', help='tensorflow version')
     parser.add_argument("--i", default='/usr/lib/', help='destination directory')
-    parser.add_argument("--s", default='', help='destination directory')
+    parser.add_argument("--p", default='', help='prefix')
 
     parser.add_argument("--python-location", default='/usr/bin/python', help='python interpreter location')
     parser.add_argument("--python-library-location", default='\\n', help='python library path (empty == default)')
@@ -287,7 +369,7 @@ def main():
     args = parser.parse_args()
     version = args.t
     destination = args.i
-    suffix = args.s
+    prefix = args.p
 
     python_location = args.python_location
     python_library_location = args.python_library_location
@@ -311,22 +393,28 @@ def main():
         return "Version TF {0} out of range min {1} or max {2} TF version".format(version, min_tf_version,
                                                                                   max_tf_version)
 
-    # tf_path = git_clone(version)
+    tf_path = git_clone(version)
 
     # for debug
-    tf_path = 'tf_' + 'r' + version
+    # tf_path = 'tf_' + 'r' + version
 
-    # bzl_version = check_bazel_version(tf_path, version)
-    # print("---- detected bazel version: {} ----".format(bzl_version[0]))
-    # bzl_path = get_bazel(bzl_version[0])
-    # print(bzl_path)
-    #
-    # tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
-    #              XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
-    #              TensorRT, clang, mpi, opt_flag, android_wpc)
-    #
-    # tf_build(tf_path)
+    bzl_version = check_bazel_version(tf_path, version)
+    print("---- detected bazel version: {} ----".format(bzl_version[0]))
+    bzl_path = get_bazel(bzl_version[0])
+    print(bzl_path)
 
+    tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
+                 XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
+                 TensorRT, clang, mpi, opt_flag, android_wpc)
+
+    tf_build(tf_path)
+    #
     eigen_download_and_build(tf_path)
+    eigen_install(prefix)
+
+    protobuf_download_and_build(tf_path)
+    protobuf_install()
+
+    install_tensorflow(tf_path)
 
 main()
