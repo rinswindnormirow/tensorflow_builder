@@ -128,7 +128,7 @@ def get_bazel(version):
 
 
 def tf_configure(tf_path, python_location, python_library_location, apache_ignite_support, XLAJIT, opencl, rocm, cuda, cuda_version,
-                 cuda_location, TensorRT, clang, mpi, opt_flag, android_wpc):
+                 cuda_location, TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud):
 
     def __stdin_write(child, str2write):
         child.stdout.flush()
@@ -184,6 +184,12 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
             __stdin_write(configure_proc, opt_flag)
         elif 'Android builds? [y/N]' in line:
             __stdin_write(configure_proc, android_wpc)
+        elif 'Do you wish to build TensorFlow with jemalloc as malloc support? [Y/n]' in line:
+            __stdin_write(configure_proc, jemalloc)
+        elif 'Do you wish to build TensorFlow with Google Cloud Platform support? [Y/n]' in line:
+            __stdin_write(configure_proc, google_cloud)
+        elif 'Do you wish to build TensorFlow with Hadoop File System support? [Y/n]' in line:
+            __stdin_write(configure_proc, google_cloud)
 
     os.chdir('..')
 
@@ -366,6 +372,8 @@ def main():
     parser.add_argument("--MPI-support", default='n')
     parser.add_argument("--opt-flag", default='-Wno-sign-compare')
     parser.add_argument("--android-workspace", default='n')
+    parser.add_argument("--jemalloc", default='n')
+    parser.add_argument("--google-cloud", default='n')
 
     args = parser.parse_args()
     version = args.t
@@ -387,6 +395,8 @@ def main():
     mpi = args.MPI_support
     opt_flag = args.opt_flag
     android_wpc = args.android_workspace
+    jemalloc = args.jemalloc
+    google_cloud = args.google_cloud
 
     min_v = version_to_int(min_tf_version)
     max_v = version_to_int(max_tf_version)
@@ -407,11 +417,11 @@ def main():
 
     tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
                  XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
-                 TensorRT, clang, mpi, opt_flag, android_wpc)
+                 TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud)
 
     tf_build(tf_path)
-    eigen_download_and_build(tf_path)
-    protobuf_download_and_build(tf_path)
+    # eigen_download_and_build(tf_path)
+    # protobuf_download_and_build(tf_path)
 
     if not no_install:
         eigen_install(prefix)
