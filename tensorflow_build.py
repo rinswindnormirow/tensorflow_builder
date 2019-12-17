@@ -347,9 +347,10 @@ def main():
     # print(which('bazel'))
 
     parser = argparse.ArgumentParser(description='tensorflow 1.xx build and install')
-    parser.add_argument("--t", default='1.12', help='tensorflow version')
-    parser.add_argument("--i", default='/usr/lib/', help='destination directory')
-    parser.add_argument("--p", default='', help='prefix')
+    parser.add_argument("-t", default='1.12', help='tensorflow version')
+    parser.add_argument("-i", default='/usr/lib/', help='destination directory')
+    parser.add_argument("-p", default='', help='prefix')
+    parser.add_argument("--no-install", action='store_true', default=False, help='download and build but no install')
 
     parser.add_argument("--python-location", default='/usr/bin/python', help='python interpreter location')
     parser.add_argument("--python-library-location", default='\\n', help='python library path (empty == default)')
@@ -370,6 +371,7 @@ def main():
     version = args.t
     destination = args.i
     prefix = args.p
+    no_install = args.no_install
 
     python_location = args.python_location
     python_library_location = args.python_library_location
@@ -408,13 +410,12 @@ def main():
                  TensorRT, clang, mpi, opt_flag, android_wpc)
 
     tf_build(tf_path)
-    #
     eigen_download_and_build(tf_path)
-    eigen_install(prefix)
-
     protobuf_download_and_build(tf_path)
-    protobuf_install()
 
-    install_tensorflow(tf_path)
+    if not no_install:
+        eigen_install(prefix)
+        protobuf_install()
+        install_tensorflow(tf_path)
 
 main()
