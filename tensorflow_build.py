@@ -22,18 +22,23 @@ def version_to_int(version):
     return int(str)
 
 
-def git_clone(version):
+def git_clone(version, no_download=False):
     version_tf = 'r' + version
     git_repo_path = 'git://github.com/tensorflow/tensorflow.git'
     # git_repo_path = 'git@github.com:tensorflow/tensorflow.git'
     dir_name = 'tf_' + 'r' + version
 
-    # check exist directory $dir_name
-    if path.exists("./" + dir_name):
-        os.system("rm -rf ./" + dir_name)
+    if no_download == False:
+        # check exist directory $dir_name
+        if path.exists("./" + dir_name):
+            os.system("rm -rf ./" + dir_name)
 
-    command = 'git clone -b ' + version_tf + ' ' + git_repo_path + ' ' + dir_name
-    subprocess.run([command], shell=True, check=True)
+        command = 'git clone -b ' + version_tf + ' ' + git_repo_path + ' ' + dir_name
+        subprocess.run([command], shell=True, check=True)
+    else:
+        if not path.exists("./" + dir_name) or not path.exists('./' + dir_name + '/.git'):
+            command = 'git clone -b ' + version_tf + ' ' + git_repo_path + ' ' + dir_name
+            subprocess.run([command], shell=True, check=True)
     return dir_name
 
 
@@ -86,16 +91,24 @@ def check_bazel_version(path, version):
         # print(max_bzl_version_str)
 
 
-def get_bazel(version):
+def get_bazel(version, no_download=False):
     # https://github.com/bazelbuild/bazel/releases/download/0.29.1/bazel-0.29.1-installer-linux-x86_64.sh
+
+    version = version[version.find('\'') + 1: version.rfind('\'')]
+
     bazel_url = 'https://github.com/bazelbuild/bazel/releases/download/{0}/bazel-{0}-installer-linux-x86_64.sh'.format(version)
     bazel_dir = 'bazel_{}'.format(version)
 
-    os.system('rm -rf ./' + bazel_dir)
-    os.system('rm -rf ./bazel/bin')
+
 
     command = 'wget -P' + ' ' + bazel_dir + ' ' + bazel_url
-    subprocess.run([command], shell=True, check=True)
+    if no_download:
+        if not path.exists('./' + bazel_dir + '/bazel-{0}-installer-linux-x86_64.sh'.format(version)):
+            subprocess.run([command], shell=True, check=True)
+    else:
+        os.system('rm -rf ./' + bazel_dir)
+        os.system('rm -rf ./bazel/bin')
+        subprocess.run([command], shell=True, check=True)
 
     current_dir = os.getcwd()
 
@@ -128,7 +141,8 @@ def get_bazel(version):
 
 
 def tf_configure(tf_path, python_location, python_library_location, apache_ignite_support, XLAJIT, opencl, rocm, cuda, cuda_version,
-                 cuda_location, TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud):
+                 cuda_location, TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud, hadoop_file_system,
+                 amazon_aws_platform, kafka):
 
     def __stdin_write(child, str2write):
         child.stdout.flush()
@@ -164,7 +178,7 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
             __stdin_write(configure_proc, python_location)
         elif 'desired Python library path' in line:
             __stdin_write(configure_proc, python_library_location)
-        elif 'XLA JIT support? [Y/n]' in line:
+        elif 'XLA JIT support? [Y/n]' in line or 'XLA JIT support?' in line:
             __stdin_write(configure_proc, XLAJIT)
         elif 'Apache Ignite Support' in line:
             __stdin_write(configure_proc, apache_ignite_support)
@@ -189,7 +203,13 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
         elif 'Do you wish to build TensorFlow with Google Cloud Platform support? [Y/n]' in line:
             __stdin_write(configure_proc, google_cloud)
         elif 'Do you wish to build TensorFlow with Hadoop File System support? [Y/n]' in line:
-            __stdin_write(configure_proc, google_cloud)
+            __stdin_write(configure_proc, hadoop_file_system)
+        elif 'Do you wish to build TensorFlow with Amazon AWS Platform support? [Y/n]' in line:
+            __stdin_write(configure_proc, amazon_aws_platform)
+        elif 'Do you wish to build TensorFlow with Apache Kafka Platform support? [Y/n]' in line:
+            __stdin_write(configure_proc, kafka)
+        elif '[Y/n]' in line or '[y/N]' in line or '[y/n]' in line or '[Y/N]' in line:
+            __stdin_write(configure_proc, 'n')
 
     os.chdir('..')
 
@@ -357,6 +377,7 @@ def main():
     parser.add_argument("-i", default='/usr/lib/', help='destination directory')
     parser.add_argument("-p", default='', help='prefix')
     parser.add_argument("--no-install", action='store_true', default=False, help='download and build but no install')
+    parser.add_argument('--no-download', action='store_true', default=False, help='no download if exist')
 
     parser.add_argument("--python-location", default='/usr/bin/python', help='python interpreter location')
     parser.add_argument("--python-library-location", default='\\n', help='python library path (empty == default)')
@@ -374,12 +395,16 @@ def main():
     parser.add_argument("--android-workspace", default='n')
     parser.add_argument("--jemalloc", default='n')
     parser.add_argument("--google-cloud", default='n')
+    parser.add_argument("--hadoop-file-system", default='n')
+    parser.add_argument("--amazon-aws-platform", default='n')
+    parser.add_argument("--apache-kafka", default='n')
 
     args = parser.parse_args()
     version = args.t
     destination = args.i
     prefix = args.p
     no_install = args.no_install
+    no_download = args.no_download
 
     python_location = args.python_location
     python_library_location = args.python_library_location
@@ -397,6 +422,9 @@ def main():
     android_wpc = args.android_workspace
     jemalloc = args.jemalloc
     google_cloud = args.google_cloud
+    hadoop_file_system = args.hadoop_file_system
+    amazon = args.amazon_aws_platform
+    kafka = args.apache_kafka
 
     min_v = version_to_int(min_tf_version)
     max_v = version_to_int(max_tf_version)
@@ -405,21 +433,23 @@ def main():
         return "Version TF {0} out of range min {1} or max {2} TF version".format(version, min_tf_version,
                                                                                   max_tf_version)
 
-    tf_path = git_clone(version)
+    tf_path = git_clone(version, no_download)
 
     # for debug
     # tf_path = 'tf_' + 'r' + version
 
     bzl_version = check_bazel_version(tf_path, version)
     print("---- detected bazel version: {} ----".format(bzl_version[0]))
-    bzl_path = get_bazel(bzl_version[0])
+    bzl_path = get_bazel(bzl_version[0], no_download)
     print(bzl_path)
 
     tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
                  XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
-                 TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud)
+                 TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud,
+                 hadoop_file_system, amazon, kafka)
 
     tf_build(tf_path)
+
     # eigen_download_and_build(tf_path)
     # protobuf_download_and_build(tf_path)
 
