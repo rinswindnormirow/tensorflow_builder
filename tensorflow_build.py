@@ -5,6 +5,7 @@ from os import path
 import argparse
 import subprocess
 
+import shutil
 from shutil import which
 from functools import partial
 
@@ -39,7 +40,7 @@ def git_clone(version, no_download=False):
         if not path.exists("./" + dir_name) or not path.exists('./' + dir_name + '/.git'):
             command = 'git clone -b ' + version_tf + ' ' + git_repo_path + ' ' + dir_name
             subprocess.run([command], shell=True, check=True)
-    return dir_name
+    # return dir_name
 
 
 def check_bazel_version(path, version):
@@ -102,13 +103,19 @@ def get_bazel(version, no_download=False):
 
 
     command = 'wget -P' + ' ' + bazel_dir + ' ' + bazel_url
-    if no_download:
-        if not path.exists('./' + bazel_dir + '/bazel-{0}-installer-linux-x86_64.sh'.format(version)):
+
+    try:
+        if no_download:
+            if not path.exists('./' + bazel_dir + '/bazel-{0}-installer-linux-x86_64.sh'.format(version)):
+                subprocess.run([command], shell=True, check=True)
+        else:
+            os.system('rm -rf ./' + bazel_dir)
+            os.system('rm -rf ./bazel/bin')
             subprocess.run([command], shell=True, check=True)
-    else:
+    except subprocess.CalledProcessError:
         os.system('rm -rf ./' + bazel_dir)
         os.system('rm -rf ./bazel/bin')
-        subprocess.run([command], shell=True, check=True)
+        return -1
 
     current_dir = os.getcwd()
 
@@ -363,8 +370,90 @@ def protobuf_install():
     os.chdir('..')
 
 
-def install_tensorflow(tf_path):
-    pass
+def install_tensorflow(tf_path, version):
+    old_dir = os.getcwd()
+    base_bin_dir = './' + tf_path + '/bazel-bin/tensorflow'
+    # os.chdir(base_bin_dir)
+
+    # шаблон для libtensorflow_framework.so и для libtensorflow_cc.so:
+    # libtensorflow_framework.so
+    # libtensorflow_framework.so.${VERSION}.1
+    # libtensorflow_cc.so
+    # libtensorflow_cc.so.${VERSION}.1
+
+
+    # install binary files
+
+    base_install_binary_dir = '/usr/local/lib'
+
+    if path.exists(base_bin_dir + '/libtensorflow_cc.so'):
+        if path.exists(base_bin_dir + '/libtensorflow_cc.so.{0}.1'.format(version)):
+            # копируем libtensorflow_cc.so.${VERSION}.1 и создаём символическую ссылку
+            shutil.copy(base_bin_dir + '/libtensorflow_cc.so.{0}.1'.format(version), base_install_binary_dir + '/libtensorflow_cc.so.{0}.1'.format(version))
+        else:
+            # копируем libtensorflow_cc.so как libtensorflow_cc.so.${VERSION}.1 и создаём символическую ссылку
+            shutil.copy(base_bin_dir + '/libtensorflow_cc.so'.format(version),
+                        base_install_binary_dir + '/libtensorflow_cc.so.{0}.1'.format(version))
+
+    else:
+        return -1
+
+    if path.exists(base_bin_dir + '/libtensorflow_framework.so'):
+        shutil.copy(base_bin_dir + '/libtensorflow_framework.so',
+                    base_install_binary_dir + '/libtensorflow_framework.so.{0}.1'.format(version))
+    elif path.exists(base_bin_dir + '/libtensorflow_framework.so.{0}.1'.format(version)):
+        shutil.copy(base_bin_dir + '/libtensorflow_framework.so.{0}.1'.format(version),
+                    base_install_binary_dir + '/libtensorflow_framework.so.{0}.1'.format(version))
+    else:
+        return -1
+
+    # создадим копии старых библиотек и удалим их
+    if path.exists(base_install_binary_dir + '/libtensorflow_cc.so'):
+
+        shutil.copy(base_install_binary_dir + '/libtensorflow_cc.so',
+                    base_install_binary_dir + '/libtensorflow_cc.so.old.1')
+
+        # shutil.move(base_install_binary_dir + '/libtensorflow_cc.so', '/dev/null')
+        os.remove(base_install_binary_dir + '/libtensorflow_cc.so')
+
+
+    if  path.exists(base_install_binary_dir + '/libtensorflow_framework.so'):
+        shutil.copy(base_install_binary_dir + '/libtensorflow_framework.so',
+                    base_install_binary_dir + '/libtensorflow_framework.so.old.1')
+
+        os.remove(base_install_binary_dir + '/libtensorflow_framework.so')
+
+        # shutil.move(base_install_binary_dir + '/libtensorflow_framework.so', '/dev/null')
+
+    os.system('ln -s ' + base_install_binary_dir + '/libtensorflow_framework.so.{0}.1'.format(version) + ' ' + base_install_binary_dir + '/libtensorflow_framework.so')
+    os.system('ln -s ' + base_install_binary_dir + '/libtensorflow_cc.so.{0}.1'.format(
+        version) + ' ' + base_install_binary_dir + '/libtensorflow_cc.so')
+
+    # install source files
+
+    base_install_source_dir = '/usr/local/include/google/tensorflow'
+    if path.exists(base_install_source_dir):
+        # надо сохранить старую версию исходников
+        shutil.move(base_install_source_dir, base_install_source_dir + '_old')
+
+    # os.mkdir(base_install_source_dir)
+    base_source_dir = './' + tf_path
+
+    def has_not(pattern):
+        def _ignore(path, names):
+            ignored_names = []
+            for name in names:
+                if not pattern in name:
+                    ignored_names.append(name)
+            return set(ignored_names)
+
+        return _ignore
+
+    shutil.copytree(base_source_dir + '/tensorflow', base_install_source_dir, ignore=has_not('.h'))
+
+
+
+    # os.chdir(old_dir)
 
 
 def main():
@@ -377,6 +466,7 @@ def main():
     parser.add_argument("-i", default='/usr/lib/', help='destination directory')
     parser.add_argument("-p", default='', help='prefix')
     parser.add_argument("--no-install", action='store_true', default=False, help='download and build but no install')
+    parser.add_argument("--only-install", action='store_true', default=False)
     parser.add_argument('--no-download', action='store_true', default=False, help='no download if exist')
 
     parser.add_argument("--python-location", default='/usr/bin/python', help='python interpreter location')
@@ -405,6 +495,7 @@ def main():
     prefix = args.p
     no_install = args.no_install
     no_download = args.no_download
+    only_install = args.only_install
 
     python_location = args.python_location
     python_library_location = args.python_library_location
@@ -433,29 +524,33 @@ def main():
         return "Version TF {0} out of range min {1} or max {2} TF version".format(version, min_tf_version,
                                                                                   max_tf_version)
 
-    tf_path = git_clone(version, no_download)
+    tf_path = 'tf_' + 'r' + version
 
-    # for debug
-    # tf_path = 'tf_' + 'r' + version
+    if not only_install:
+        git_clone(version, no_download)
 
-    bzl_version = check_bazel_version(tf_path, version)
-    print("---- detected bazel version: {} ----".format(bzl_version[0]))
-    bzl_path = get_bazel(bzl_version[0], no_download)
-    print(bzl_path)
+        # for debug
+        # tf_path = 'tf_' + 'r' + version
 
-    tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
-                 XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
-                 TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud,
-                 hadoop_file_system, amazon, kafka)
+        bzl_version = check_bazel_version(tf_path, version)
+        print("---- detected bazel version: {} ----".format(bzl_version[0]))
+        bzl_path = get_bazel(bzl_version[0], no_download)
+        print(bzl_path)
 
-    tf_build(tf_path)
+        tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
+                     XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
+                     TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud,
+                     hadoop_file_system, amazon, kafka)
 
-    # eigen_download_and_build(tf_path)
-    # protobuf_download_and_build(tf_path)
+        tf_build(tf_path)
 
-    if not no_install:
-        eigen_install(prefix)
-        protobuf_install()
-        install_tensorflow(tf_path)
+        eigen_download_and_build(tf_path)
+        protobuf_download_and_build(tf_path)
+
+    if not no_install or only_install:
+        install_tensorflow(tf_path, version)
+        # eigen_install(prefix)
+        # protobuf_install()
+
 
 main()
