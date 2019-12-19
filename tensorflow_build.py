@@ -443,13 +443,16 @@ def install_tensorflow(tf_path, version):
         def _ignore(path, names):
             ignored_names = []
             for name in names:
-                if not pattern in name:
+                if not pattern in name and not os.path.isdir(path + '/' + name):
+                    # print(name)
                     ignored_names.append(name)
             return set(ignored_names)
 
         return _ignore
 
     shutil.copytree(base_source_dir + '/tensorflow', base_install_source_dir, ignore=has_not('.h'))
+
+    shutil.copytree(base_source_dir + '/bazel-genfiles/tensorflow/framework', base_install_source_dir + '/')
 
 
 
