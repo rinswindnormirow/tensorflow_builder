@@ -95,7 +95,7 @@ def check_bazel_version(path, version):
 def get_bazel(version, no_download=False):
     # https://github.com/bazelbuild/bazel/releases/download/0.29.1/bazel-0.29.1-installer-linux-x86_64.sh
 
-    version = version[version.find('\'') + 1: version.rfind('\'')]
+    # version = version[version.find('\'') + 1: version.rfind('\'')]
 
     bazel_url = 'https://github.com/bazelbuild/bazel/releases/download/{0}/bazel-{0}-installer-linux-x86_64.sh'.format(version)
     bazel_dir = 'bazel_{}'.format(version)
@@ -283,12 +283,13 @@ def eigen_download_and_build(tf_dir, no_download=False):
 
     url = urls[0]
 
+    command = 'wget -P ./eigen ' + url
+
     # download eigen
     if path.exists("./eigen") and no_download == False:
         os.system("rm -rf ./eigen")
 
-    if not no_download:
-        command = 'wget -P ./eigen ' + url
+    if not no_download or not path.exists("./eigen"):
         subprocess.run([command], shell=True, check=True)
 
     # extract tarball
@@ -334,7 +335,7 @@ def protobuf_download_and_build(tf_dir, no_download=False):
         if path.exists("./protobuf") and not no_download:
             os.system("rm -rf ./protobuf")
 
-        if not no_download:
+        if not no_download or not path.exists("./protobuf"):
             command = 'wget -P ./protobuf ' + url
             subprocess.run([command], shell=True, check=True)
 
