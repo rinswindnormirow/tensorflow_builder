@@ -415,16 +415,16 @@ def install_tensorflow(tf_path, version, install_prefix='/usr/local'):
 
     try:
 
-        print(base_bin_dir + '/libtensorflow_cc.so.{0}.0.1'.format(version))
+        print(base_bin_dir + '/libtensorflow_cc.so.{0}'.format(version))
         if path.exists(base_bin_dir + '/libtensorflow_cc.so') and not path.islink(base_bin_dir + '/libtensorflow_cc.so'):
             print('path {0} exists and is\'nt symbol link'.format(base_bin_dir + '/libtensorflow_cc.so'))
             shutil.copy(base_bin_dir + '/libtensorflow_cc.so'.format(version),
-                        base_install_binary_dir + '/libtensorflow_cc.so.{0}.1'.format(version))
+                        base_install_binary_dir + '/libtensorflow_cc.so.{0}'.format(version))
 
-        elif path.exists(base_bin_dir + '/libtensorflow_cc.so.{0}.1'.format(version)) or path.exists(base_bin_dir + '/libtensorflow_cc.so.{0}.0.1'.format(version)):
-            print('copy {0} to {1}'.format(base_bin_dir + '/libtensorflow_cc.so.{0}.1'.format(version), base_install_binary_dir + '/libtensorflow_cc.so.{0}.1'.format(version)))
-            # копируем libtensorflow_cc.so.${VERSION}.1
-            shutil.copy(base_bin_dir + '/libtensorflow_cc.so.{0}.1'.format(version), base_install_binary_dir + '/libtensorflow_cc.so.{0}.1'.format(version))
+        elif path.exists(base_bin_dir + '/libtensorflow_cc.so.{0}'.format(version)) or path.exists(base_bin_dir + '/libtensorflow_cc.so.{0}'.format(version)):
+            print('copy {0} to {1}'.format(base_bin_dir + '/libtensorflow_cc.so.{0}'.format(version), base_install_binary_dir + '/libtensorflow_cc.so.{0}'.format(version)))
+            # копируем libtensorflow_cc.so.${VERSION}
+            shutil.copy(base_bin_dir + '/libtensorflow_cc.so.{0}'.format(version), base_install_binary_dir + '/libtensorflow_cc.so.{0}'.format(version))
         else:
             print('nothing to copy')
             return -1
@@ -432,10 +432,10 @@ def install_tensorflow(tf_path, version, install_prefix='/usr/local'):
         if path.exists(base_bin_dir + '/libtensorflow_framework.so') and not path.islink(base_bin_dir + '/libtensorflow_framework.so'):
             print('path {0} exists and is\'nt symbol link'.format(base_bin_dir + '/libtensorflow_framework.so'))
             shutil.copy(base_bin_dir + '/libtensorflow_framework.so',
-                        base_install_binary_dir + '/libtensorflow_framework.so.{0}.1'.format(version))
-        elif path.exists(base_bin_dir + '/libtensorflow_framework.so.{0}.1'.format(version)):
-            shutil.copy(base_bin_dir + '/libtensorflow_framework.so.{0}.1'.format(version),
-                        base_install_binary_dir + '/libtensorflow_framework.so.{0}.1'.format(version))
+                        base_install_binary_dir + '/libtensorflow_framework.so.{0}'.format(version))
+        elif path.exists(base_bin_dir + '/libtensorflow_framework.so.{0}'.format(version)):
+            shutil.copy(base_bin_dir + '/libtensorflow_framework.so.{0}'.format(version),
+                        base_install_binary_dir + '/libtensorflow_framework.so.{0}'.format(version))
         else:
             return -1
 
@@ -462,8 +462,8 @@ def install_tensorflow(tf_path, version, install_prefix='/usr/local'):
         # shutil.move(base_install_binary_dir + '/libtensorflow_framework.so', '/dev/null')
 
     # создадим симводически ссылки
-    os.system('ln -s ' + base_install_binary_dir + '/libtensorflow_framework.so.{0}.1'.format(version) + ' ' + base_install_binary_dir + '/libtensorflow_framework.so')
-    os.system('ln -s ' + base_install_binary_dir + '/libtensorflow_cc.so.{0}.1'.format(
+    os.system('ln -s ' + base_install_binary_dir + '/libtensorflow_framework.so.{0}'.format(version) + ' ' + base_install_binary_dir + '/libtensorflow_framework.so')
+    os.system('ln -s ' + base_install_binary_dir + '/libtensorflow_cc.so.{0}'.format(
         version) + ' ' + base_install_binary_dir + '/libtensorflow_cc.so')
 
     # install source files
@@ -603,6 +603,7 @@ def main():
                                                                                   max_tf_version)
 
     tf_path = 'tf_' + 'r' + version
+    true_tf_version = ''
 
     if not only_install:
         git_clone(version, no_download)
@@ -629,9 +630,10 @@ def main():
 
 
     if not no_install or only_install:
+        true_tf_version = check_true_tf_version(tf_path)
         install_tensorflow(tf_path, true_tf_version, prefix)
-        # eigen_install(prefix)
-        # protobuf_install()
+        eigen_install(prefix)
+        protobuf_install()
 
 
 main()
