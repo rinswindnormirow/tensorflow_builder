@@ -612,7 +612,7 @@ def main():
         # for debug
         # tf_path = 'tf_' + 'r' + version
 
-        bzl_version = check_bazel_version(tf_path, true_tf_version)
+        bzl_version = check_bazel_version(tf_path, version)
         print("---- detected bazel version: {} ----".format(bzl_version[0]))
         bzl_path = get_bazel(bzl_version[0], no_download)
         print(bzl_path)
