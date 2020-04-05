@@ -4,6 +4,8 @@ import os
 from os import path
 import argparse
 import subprocess
+import sys
+import time
 
 import shutil
 from shutil import which
@@ -172,12 +174,14 @@ def get_bazel(version, no_download=False):
 
 def tf_configure(tf_path, python_location, python_library_location, apache_ignite_support, XLAJIT, opencl, rocm, cuda, cuda_version,
                  cuda_location, TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud, hadoop_file_system,
-                 amazon_aws_platform, kafka):
+                 amazon_aws_platform, kafka, cudnn_version, nccl, cuda_inc, cuda_lib):
 
     def __stdin_write(child, str2write):
+        # child.communicate(str2write + '\n')
         child.stdout.flush()
         child.stdin.write(str2write + '\n')
-        child.stdin.flush()
+        # child.stdin.flush()
+
 
     print(tf_path)
     os.chdir('./' + tf_path)
@@ -189,12 +193,18 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
     command = './configure.py'
     os.system('chmod +x ' + command)
 
-    configure_proc = subprocess.Popen(['/usr/bin/python3', command], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+    configure_proc = subprocess.Popen(
+        ['/usr/bin/python3', command],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        bufsize=1
+    )
 
     # poll check if child process has terminated
     while configure_proc.poll() is None:
 
-        configure_proc.stdout.flush()
+        # configure_proc.stdout.flush()
         configure_proc.stdin.flush()
 
         line = ''
@@ -203,7 +213,7 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
                 break
             line += c
 
-        print(line)
+        print('>', line) #, file=sys.stderr)
         if 'location of python' in line:
             __stdin_write(configure_proc, python_location)
         elif 'desired Python library path' in line:
@@ -240,6 +250,19 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
             __stdin_write(configure_proc, kafka)
         elif '[Y/n]' in line or '[y/N]' in line or '[y/n]' in line or '[Y/N]' in line:
             __stdin_write(configure_proc, 'n')
+        elif 'Please specify the CUDA SDK version you want to use.' in line:
+            __stdin_write(configure_proc, cuda_version + '\n')
+        elif 'Please specify the cuDNN version you want to use.' in line:
+            __stdin_write(configure_proc, cudnn_version)
+        elif 'Please specify the locally installed NCCL version you want to use' in line:
+            __stdin_write(configure_proc, nccl)
+        elif 'Please specify the comma-separated list of base paths to look for CUDA libraries and headers' in line:
+            #cuda_loc = cuda_inc + ',\n' # + cuda_lib + ",\n"
+            cuda_loc='/usr'
+            __stdin_write(configure_proc, cuda_loc)
+            # __stdin_write(configure_proc, cuda_loc)
+        else:
+            pass
 
     os.chdir('..')
 
@@ -555,6 +578,7 @@ def main():
     parser.add_argument("--rocm", default='n')
     parser.add_argument("--CUDA", default='y')
     parser.add_argument("--CUDA-VERSION", default='')
+    parser.add_argument("--cuDNN-VERSION", default='7\n')
     parser.add_argument("--CUDA-toolkit-location", default='')
     parser.add_argument("--TensorRT-support", default='n')
     parser.add_argument("--download-clang", default='n')
@@ -566,6 +590,9 @@ def main():
     parser.add_argument("--hadoop-file-system", default='n')
     parser.add_argument("--amazon-aws-platform", default='n')
     parser.add_argument("--apache-kafka", default='n')
+    parser.add_argument("--nccl", default='')
+    parser.add_argument("--cuda-include", default="/usr/local/cuda-10.0/include/")
+    parser.add_argument("--cuda-lib", default="/usr/local/cuda-10.0/lib64/")
 
     args = parser.parse_args()
     version = args.t
@@ -584,6 +611,7 @@ def main():
     CUDA = args.CUDA
     CUDA_VERSION = args.CUDA_VERSION
     CUDA_toolkit_location = args.CUDA_toolkit_location
+    cudnn_version = args.cuDNN_VERSION
     TensorRT = args.TensorRT_support
     clang = args.download_clang
     mpi = args.MPI_support
@@ -594,6 +622,9 @@ def main():
     hadoop_file_system = args.hadoop_file_system
     amazon = args.amazon_aws_platform
     kafka = args.apache_kafka
+    nccl = args.nccl
+    cuda_inc = args.cuda_include
+    cuda_lib = args.cuda_lib
 
     min_v = version_to_int(min_tf_version)
     max_v = version_to_int(max_tf_version)
@@ -620,7 +651,7 @@ def main():
         tf_configure(tf_path, python_location, python_library_location, apache_ignite_support,
                      XLA_JIT, opencl_sycl, rocm, CUDA, CUDA_VERSION, CUDA_toolkit_location,
                      TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud,
-                     hadoop_file_system, amazon, kafka)
+                     hadoop_file_system, amazon, kafka, cudnn_version, nccl, cuda_inc, cuda_lib)
 
         tf_build(tf_path)
 
