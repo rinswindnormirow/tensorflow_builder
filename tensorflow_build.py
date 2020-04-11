@@ -176,104 +176,164 @@ def tf_configure(tf_path, python_location, python_library_location, apache_ignit
                  cuda_location, TensorRT, clang, mpi, opt_flag, android_wpc, jemalloc, google_cloud, hadoop_file_system,
                  amazon_aws_platform, kafka, cudnn_version, nccl, cuda_inc, cuda_lib):
 
-    def __stdin_write(child, str2write):
-        # child.communicate(str2write + '\n')
-        child.stdout.flush()
-        child.stdin.write(str2write + '\n')
-        # child.stdin.flush()
+    # def __stdin_write(child, str2write):
+    #     child.stdin.flush()
+    #     child.stdin.write(str2write + '\n')
+
+    # не буду заморачиваться с передачей параметров в configure.py, а просто
+    # создам файл с настройками .tf_configure.bazelrc
+    # ветвление: поддерживаем CUDA или нет
 
 
     print(tf_path)
     os.chdir('./' + tf_path)
 
+    bazelrc_file_name = '.tf_configure.bazelrc'
+    build_action_prefix = 'build --action_env'
+
+    # build - -python_path = "/usr/bin/python3"
+
+
+    with open(bazelrc_file_name, 'w') as bazelrc:
+
+
+
+        # python
+        bazelrc.write(build_action_prefix + ' PYTHON_BIN_PATH=\"' + python_location + '\"\n')
+        bazelrc.write(build_action_prefix + ' PYTHON_LIB_PATH=\"' + python_library_location + '\"\n')
+        bazelrc.write('build --python_path=\"' + python_location + '\"\n')
+
+        bazelrc.write('build:xla --define with_xla_support=true\n')
+
+        # common
+        bazelrc.write(build_action_prefix + ' TF_NEED_OPENCL_SYCL=\"0\"\n')
+        bazelrc.write(build_action_prefix + ' TF_NEED_ROCM=\"0\"\n')
+
+        if cuda == 'y':
+            bazelrc.write(build_action_prefix + ' TF_NEED_CUDA=\"1\"\n')
+            bazelrc.write(build_action_prefix + ' CUDA_TOOLKIT_PATH=\"' + cuda_location + '\"\n')
+            bazelrc.write(build_action_prefix + ' TF_CUDA_VERSION=\"' + cuda_version + '\"\n')
+            bazelrc.write(build_action_prefix + ' CUDNN_INSTALL_PATH=\"/usr/lib/x86_64-linux-gnu\"\n')
+            bazelrc.write(build_action_prefix + ' TF_CUDNN_VERSION=\"' + cudnn_version + '\"\n')
+            bazelrc.write(build_action_prefix + ' TF_NCCL_VERSION=\"\"\n')
+            bazelrc.write(build_action_prefix + ' TF_CUDA_COMPUTE_CAPABILITIES=\"3.5,7.0\"\n')
+            bazelrc.write(build_action_prefix + ' TF_CUDA_CLANG=\"0\"\n')
+            bazelrc.write(build_action_prefix + ' GCC_HOST_COMPILER_PATH=\"/usr/bin/gcc\"\n')
+            bazelrc.write('build --config=cuda\n')
+            bazelrc.write('test --config=cuda\n')
+        else:
+            bazelrc.write(build_action_prefix + ' TF_NEED_CUDA=\"0\"\n')
+            bazelrc.write(build_action_prefix + ' TF_DOWNLOAD_CLANG=\"0\"\n')
+
+            bazelrc.write('test --flaky_test_attempts=3\n')
+            bazelrc.write('test --test_size_filters=small,medium\n')
+            bazelrc.write('test --test_tag_filters=-benchmark-test,-no_oss,-oss_serial\n')
+            bazelrc.write('test --build_tag_filters=-benchmark-test,-no_oss\n')
+            bazelrc.write('test --test_tag_filters=-gpu\n')
+            bazelrc.write('test --build_tag_filters=-gpu\n')
+            bazelrc.write('build --action_env TF_CONFIGURE_IOS=\"0\"\n')
+
+        # optimization
+        bazelrc.write('build: opt --copt=-march=native')
+        bazelrc.write('build: opt --copt=-D_GLIBCXX_USE_CXX11_ABI=0')
+        bazelrc.write('build: opt --copt=-Wno-sign-compare\n')
+        bazelrc.write('build: opt --host_copt=-march=native\n')
+        bazelrc.write('build: opt --define with_default_optimizations=true\n')
+        bazelrc.write('build: v2 --define=tf_api_version=2\n')
+
     # command = './' + tf_path + '/configure'
     # os.system('chmod +x ' + command)
     print(os.getcwd())
 
-    command = './configure.py'
-    os.system('chmod +x ' + command)
-
-    configure_proc = subprocess.Popen(
-        ['/usr/bin/python3', command],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-        bufsize=1
-    )
-
-    # poll check if child process has terminated
-    while configure_proc.poll() is None:
-
-        # configure_proc.stdout.flush()
-        configure_proc.stdin.flush()
-
-        line = ''
-        for c in iter(partial(configure_proc.stdout.read, 1), ''):
-            if c == '\n' or c == ':':
-                break
-            line += c
-
-        print('>', line) #, file=sys.stderr)
-        if 'location of python' in line:
-            __stdin_write(configure_proc, python_location)
-        elif 'desired Python library path' in line:
-            __stdin_write(configure_proc, python_library_location)
-        elif 'XLA JIT support? [Y/n]' in line or 'XLA JIT support?' in line:
-            __stdin_write(configure_proc, XLAJIT)
-        elif 'Apache Ignite Support' in line:
-            __stdin_write(configure_proc, apache_ignite_support)
-        elif 'OpenCL SYCL support? [y/N]' in line:
-            __stdin_write(configure_proc, opencl)
-        elif 'ROCm support? [y/N]' in line:
-            __stdin_write(configure_proc, rocm)
-        elif 'CUDA support? [y/N]' in line:
-            __stdin_write(configure_proc, cuda)
-        elif 'Do you wish to build TensorFlow with TensorRT support? [y/N]' in line:
-            __stdin_write(configure_proc, TensorRT)
-        elif 'fresh release of clang? (Experimental) [y/N]' in line:
-            __stdin_write(configure_proc, clang)
-        elif 'TensorFlow with MPI support? [y/N]' in line:
-            __stdin_write(configure_proc, mpi)
-        elif 'specify optimization flags' in line:
-            __stdin_write(configure_proc, opt_flag)
-        elif 'Android builds? [y/N]' in line:
-            __stdin_write(configure_proc, android_wpc)
-        elif 'Do you wish to build TensorFlow with jemalloc as malloc support? [Y/n]' in line:
-            __stdin_write(configure_proc, jemalloc)
-        elif 'Do you wish to build TensorFlow with Google Cloud Platform support? [Y/n]' in line:
-            __stdin_write(configure_proc, google_cloud)
-        elif 'Do you wish to build TensorFlow with Hadoop File System support? [Y/n]' in line:
-            __stdin_write(configure_proc, hadoop_file_system)
-        elif 'Do you wish to build TensorFlow with Amazon AWS Platform support? [Y/n]' in line:
-            __stdin_write(configure_proc, amazon_aws_platform)
-        elif 'Do you wish to build TensorFlow with Apache Kafka Platform support? [Y/n]' in line:
-            __stdin_write(configure_proc, kafka)
-        elif '[Y/n]' in line or '[y/N]' in line or '[y/n]' in line or '[Y/N]' in line:
-            __stdin_write(configure_proc, 'n')
-        elif 'Please specify the CUDA SDK version you want to use.' in line:
-            __stdin_write(configure_proc, cuda_version + '\n')
-        elif 'Please specify the cuDNN version you want to use.' in line:
-            __stdin_write(configure_proc, cudnn_version)
-        elif 'Please specify the locally installed NCCL version you want to use' in line:
-            __stdin_write(configure_proc, nccl)
-        elif 'Please specify the comma-separated list of base paths to look for CUDA libraries and headers' in line:
-            #cuda_loc = cuda_inc + ',\n' # + cuda_lib + ",\n"
-            cuda_loc='/usr'
-            __stdin_write(configure_proc, cuda_loc)
-            # __stdin_write(configure_proc, cuda_loc)
-        else:
-            pass
+    # command = './configure.py'
+    # os.system('chmod +x ' + command)
+    #
+    # configure_proc = subprocess.Popen(
+    #     ['/usr/bin/python3', command],
+    #     stdin=subprocess.PIPE,
+    #     stdout=subprocess.PIPE,
+    #     universal_newlines=True,
+    #     bufsize=1
+    # )
+    #
+    # # poll check if child process has terminated
+    # while configure_proc.poll() is None:
+    #
+    #     # configure_proc.stdout.flush()
+    #     configure_proc.stdin.flush()
+    #
+    #     line = ''
+    #     for c in iter(partial(configure_proc.stdout.read, 1), ''):
+    #         if c == '\n' or c == ':':
+    #             break
+    #         line += c
+    #
+    #     print('>', line) #, file=sys.stderr)
+    #     if 'location of python' in line:
+    #         __stdin_write(configure_proc, python_location)
+    #     elif 'desired Python library path' in line:
+    #         __stdin_write(configure_proc, python_library_location)
+    #     elif 'XLA JIT support? [Y/n]' in line or 'XLA JIT support?' in line:
+    #         __stdin_write(configure_proc, XLAJIT)
+    #     elif 'Apache Ignite Support' in line:
+    #         __stdin_write(configure_proc, apache_ignite_support)
+    #     elif 'OpenCL SYCL support? [y/N]' in line:
+    #         __stdin_write(configure_proc, opencl)
+    #     elif 'ROCm support? [y/N]' in line:
+    #         __stdin_write(configure_proc, rocm)
+    #     elif 'CUDA support? [y/N]' in line:
+    #         __stdin_write(configure_proc, cuda)
+    #     elif 'Do you wish to build TensorFlow with TensorRT support? [y/N]' in line:
+    #         __stdin_write(configure_proc, TensorRT)
+    #     elif 'fresh release of clang? (Experimental) [y/N]' in line:
+    #         __stdin_write(configure_proc, clang)
+    #     elif 'TensorFlow with MPI support? [y/N]' in line:
+    #         __stdin_write(configure_proc, mpi)
+    #     elif 'specify optimization flags' in line:
+    #         __stdin_write(configure_proc, opt_flag)
+    #     elif 'Android builds? [y/N]' in line:
+    #         __stdin_write(configure_proc, android_wpc)
+    #     elif 'Do you wish to build TensorFlow with jemalloc as malloc support? [Y/n]' in line:
+    #         __stdin_write(configure_proc, jemalloc)
+    #     elif 'Do you wish to build TensorFlow with Google Cloud Platform support? [Y/n]' in line:
+    #         __stdin_write(configure_proc, google_cloud)
+    #     elif 'Do you wish to build TensorFlow with Hadoop File System support? [Y/n]' in line:
+    #         __stdin_write(configure_proc, hadoop_file_system)
+    #     elif 'Do you wish to build TensorFlow with Amazon AWS Platform support? [Y/n]' in line:
+    #         __stdin_write(configure_proc, amazon_aws_platform)
+    #     elif 'Do you wish to build TensorFlow with Apache Kafka Platform support? [Y/n]' in line:
+    #         __stdin_write(configure_proc, kafka)
+    #     elif '[Y/n]' in line or '[y/N]' in line or '[y/n]' in line or '[Y/N]' in line:
+    #         __stdin_write(configure_proc, 'n')
+    #     elif 'Please specify the CUDA SDK version you want to use.' in line:
+    #         __stdin_write(configure_proc, cuda_version + '\n')
+    #     elif 'Please specify the cuDNN version you want to use.' in line:
+    #         __stdin_write(configure_proc, cudnn_version)
+    #     elif 'Please specify the locally installed NCCL version you want to use' in line:
+    #         __stdin_write(configure_proc, nccl)
+    #     elif 'Please specify the comma-separated list of base paths to look for CUDA libraries and headers' in line:
+    #         #cuda_loc = cuda_inc + ',\n' # + cuda_lib + ",\n"
+    #         cuda_loc='/usr'
+    #         __stdin_write(configure_proc, cuda_loc)
+    #         # __stdin_write(configure_proc, cuda_loc)
+    #     else:
+    #         pass
 
     os.chdir('..')
 
 
 def tf_build(tf_dir):
     bazel = which('bazel')
-    command = '{0} build --config=opt //tensorflow:libtensorflow_cc.so'.format(bazel)
+    # command = '{0} build --config=opt //tensorflow:libtensorflow_cc.so'.format(bazel)
+    command = '{0} build //tensorflow:libtensorflow_cc.so'.format(bazel)
 
     os.chdir('./' + tf_dir)
 
-    subprocess.run([command], shell=True, check=True)
+    try:
+        subprocess.run([command], shell=True, check=True)
+    except subprocess.CalledProcessError:
+        print ('Compile error', file=sys.stderr)
+        exit(1)
     os.chdir('..')
 
 
@@ -578,8 +638,8 @@ def main():
     parser.add_argument("--rocm", default='n')
     parser.add_argument("--CUDA", default='y')
     parser.add_argument("--CUDA-VERSION", default='')
-    parser.add_argument("--cuDNN-VERSION", default='7\n')
-    parser.add_argument("--CUDA-toolkit-location", default='')
+    parser.add_argument("--cuDNN-VERSION", default='7')
+    parser.add_argument("--cuda-location", default='')
     parser.add_argument("--TensorRT-support", default='n')
     parser.add_argument("--download-clang", default='n')
     parser.add_argument("--MPI-support", default='n')
@@ -610,7 +670,7 @@ def main():
     rocm = args.rocm
     CUDA = args.CUDA
     CUDA_VERSION = args.CUDA_VERSION
-    CUDA_toolkit_location = args.CUDA_toolkit_location
+    CUDA_toolkit_location = args.cuda_location
     cudnn_version = args.cuDNN_VERSION
     TensorRT = args.TensorRT_support
     clang = args.download_clang
